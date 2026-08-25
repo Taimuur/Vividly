@@ -1,0 +1,13 @@
+# Normalise line endings so a checkout on Windows does not produce a CRLF gradlew,
+# which would fail to run on Linux and macOS CI.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+gradlew text eol=lf
+
+*.jar binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.aar binary
+*.apk binary

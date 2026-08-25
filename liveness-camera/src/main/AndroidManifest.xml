@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      The library cannot function without the camera, so the permission is declared here and
+      merged into the host manifest. *Requesting* it at runtime remains the host application's
+      responsibility: this library deliberately ships no permission UI.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <uses-feature
+        android:name="android.hardware.camera.any"
+        android:required="false" />
+
+    <application>
+        <!--
+          Asks Google Play services to fetch the unbundled face-detection model ahead of first use,
+          so the first session does not stall while the model downloads.
+        -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="face" />
+    </application>
+
+</manifest>
