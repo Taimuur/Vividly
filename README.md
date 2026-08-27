@@ -7,6 +7,10 @@ challenge is completed. The state machine that decides all of this is a pure Kot
 Android dependencies at all, so the interesting logic is unit-tested rather than device-tested; a
 CameraX adapter and an optional Compose UI are layered on top and can be replaced independently.
 
+> **Status: pre-release.** Vividly is **not published to Maven Central or any other artifact
+> repository yet**, so there is no coordinate you can depend on. Until that changes, use it as
+> source — see [Installation](#installation). The API is not frozen and may change without notice.
+
 > **Screenshot / GIF placeholder** — drop a recording of the sample app at `docs/demo.gif` and
 > reference it here.
 >
@@ -18,34 +22,77 @@ CameraX adapter and an optional Compose UI are layered on top and can be replace
 
 ```
 ┌─────────────────┐
-│ liveness-compose│  vividly-compose  — optional default UI (slot-based, themable)
+│ liveness-compose│  optional default UI (slot-based, themable)
 └────────┬────────┘
          │ api
 ┌────────▼────────┐
-│ liveness-camera │  vividly-camera   — CameraX + ML Kit adapter, auto-capture
+│ liveness-camera │  CameraX + ML Kit adapter, auto-capture
 └────────┬────────┘
          │ api
 ┌────────▼────────┐
-│  liveness-core  │  vividly-core     — the state machine. Pure Kotlin/JVM, zero Android
+│  liveness-core  │  the state machine. Pure Kotlin/JVM, zero Android
 └─────────────────┘
 ```
 
 Dependencies point downward only. Because each level exposes the one below it with `api`, depending
-on `vividly-compose` also gives you the camera and core types.
+on `liveness-compose` also gives you the camera and core types.
 
-| Module            | Artifact          | Depends on                    | Use it when |
-|-------------------|-------------------|-------------------------------|-------------|
-| `liveness-core`   | `vividly-core`    | kotlinx-coroutines-core       | You have your own face detector and want only the challenge logic |
-| `liveness-camera` | `vividly-camera`  | CameraX, ML Kit face detection| You want the camera plumbing but your own UI |
-| `liveness-compose`| `vividly-compose` | Compose, Material 3           | You want a screen that works out of the box |
+| Gradle module     | Depends on                     | Use it when |
+|-------------------|--------------------------------|-------------|
+| `liveness-core`   | kotlinx-coroutines-core        | You have your own face detector and want only the challenge logic |
+| `liveness-camera` | CameraX, ML Kit face detection | You want the camera plumbing but your own UI |
+| `liveness-compose`| Compose, Material 3            | You want a screen that works out of the box |
 
-## Quick start — Compose
+A fourth module, `sample`, is a demo app rather than a library. It is not meant to be consumed.
+
+The artifact ids reserved for publication are `vividly-core`, `vividly-camera` and
+`vividly-compose` under the group `io.github.taimuur`. **None of them are published yet**, and the
+project deliberately carries no publishing configuration — see [Roadmap](#roadmap).
+
+## Installation
+
+### Today: as source
+
+Vividly is consumed as Gradle modules. Clone this repository next to your app, then point your
+`settings.gradle.kts` at the three library directories:
+
+```kotlin
+// settings.gradle.kts — in your app
+include(":liveness-core", ":liveness-camera", ":liveness-compose")
+
+project(":liveness-core").projectDir = file("../vividly/liveness-core")
+project(":liveness-camera").projectDir = file("../vividly/liveness-camera")
+project(":liveness-compose").projectDir = file("../vividly/liveness-compose")
+```
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation(project(":liveness-compose"))
+}
+```
+
+**One step that is easy to miss:** the library modules declare their dependencies through this
+repository's version catalog (`libs.plugins.android.library`, `libs.androidx.camera.core`, and so
+on). A build that does not define those aliases fails with `Unresolved reference: libs`. Copy the
+entries the modules reference from [`gradle/libs.versions.toml`](gradle/libs.versions.toml) into
+your own catalog, or replace the aliases with literal coordinates in your copy of the modules.
+
+If you would rather not merge catalogs, the simplest starting point is to work inside this
+repository and use the `sample` module as your app.
+
+### Once published
+
+When the artifacts land on Maven Central, the whole of the above collapses to one line — which is
+exactly why publishing is on the roadmap:
 
 ```kotlin
 dependencies {
     implementation("io.github.taimuur:vividly-compose:<version>")
 }
 ```
+
+## Quick start — Compose
 
 ```kotlin
 VividlyLiveness(
@@ -217,19 +264,49 @@ on the client can be lied to.
 
 ## Roadmap
 
-- Passive liveness signals (texture, reflectance, micro-movement) to complement the challenges
-- A head-nod challenge, using pitch as well as yaw
-- Publishing to Maven Central
-- `binary-compatibility-validator` for a locked public API surface
+**None of the following is implemented.** This section exists so you can tell the difference
+between a deliberate omission and a known gap.
+
+**Passive liveness signals.** Vividly today is purely *active*: it only knows you are real because
+you performed actions on request. Passive checks — skin texture versus screen pixels, reflectance,
+involuntary micro-movement — inspect the image itself and need no cooperation. The two complement
+each other, because a live screen replay can answer challenges but tends to fail texture and
+reflectance checks.
+
+**A head-nod challenge.** The turn challenges use *yaw*, rotation left and right
+(`headEulerAngleY`). A nod is *pitch*, up and down (`headEulerAngleX`). Adding it means a new field
+on `FaceFrame`, a new detector, and a new `Challenge` entry. More distinct challenges means a larger
+pool for the randomiser to draw from, which makes a session harder to pre-record.
+
+**Publishing to Maven Central.** Maven Central is the public repository Gradle downloads
+dependencies from. Publishing there is what turns the multi-step
+[Installation](#installation) dance into a single `implementation(...)` line, and it is the only
+thing standing between this project and being usable by someone who has not cloned it. Nothing about
+the library requires it in order to *work* — it is purely about distribution.
+
+**`binary-compatibility-validator`.** A Gradle plugin that dumps the public API surface into `.api`
+files committed to the repository, then fails the build whenever a change alters that surface. Once
+someone depends on a published `vividly-core`, deleting a public function or changing a signature
+breaks their compile — or throws `NoSuchMethodError` at runtime for anyone who does not rebuild. The
+validator turns an accidental break into a visible diff in code review. It pairs with the
+`explicitApi()` mode already enabled here: `explicitApi()` forces you to *declare* what is public,
+the validator *locks* what is public. It is only worth adding once there are downstream consumers to
+protect.
 
 ## Building
 
 ```bash
-./gradlew :liveness-core:test    # the state machine's test suite
-./gradlew assembleDebug          # all three libraries plus the sample app
+./gradlew :liveness-core:test    # the state machine's test suite (39 tests)
+./gradlew assembleDebug          # every module
 ```
 
-Requires JDK 17 and an Android SDK with API 36. The `sample` module is the manual test bed.
+`assembleDebug` produces the two Android library AARs and the sample APK, and builds
+`liveness-core` along the way — core is a plain JVM module with no `assembleDebug` task of its own,
+but the Android modules depend on it, so its jar is built as part of the same command. In short, one
+command covers all four modules.
+
+Requires JDK 17 and an Android SDK with API 36 installed. The `sample` module is the manual test
+bed: it exercises the runtime permission grant, a successful capture, and each failure mode.
 
 ## License
 
