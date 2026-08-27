@@ -1,0 +1,17 @@
+# JitPack build configuration.
+#
+# JitPack checks out the tag being requested, runs the commands below, and then serves whatever the
+# build left in the local Maven repository. Publishing there is exactly what
+# `publishToMavenLocal` does, so no JitPack-specific publishing setup is needed.
+#
+# Note: JitPack's free tier only builds PUBLIC repositories. While this repository is private,
+# JitPack cannot fetch it and builds will fail with a clone error.
+
+jdk:
+  - openjdk17
+
+install:
+  # JitPack exposes the tag being built as $VERSION. -Pversion overrides the default set in
+  # gradle.properties, so the published artifacts carry the tag as their version. The fallback
+  # keeps the command valid if the variable is ever unset, rather than publishing an empty version.
+  - ./gradlew publishToMavenLocal -Pversion=${VERSION:-0.1.0-SNAPSHOT} --no-daemon --stacktrace

@@ -7,9 +7,11 @@ challenge is completed. The state machine that decides all of this is a pure Kot
 Android dependencies at all, so the interesting logic is unit-tested rather than device-tested; a
 CameraX adapter and an optional Compose UI are layered on top and can be replaced independently.
 
-> **Status: pre-release.** Vividly is **not published to Maven Central or any other artifact
-> repository yet**, so there is no coordinate you can depend on. Until that changes, use it as
-> source — see [Installation](#installation). The API is not frozen and may change without notice.
+> **Status: pre-release.** Vividly is not on Maven Central yet. It installs from
+> [JitPack](#option-1-jitpack-recommended), which builds directly from a tag in this repository —
+> but JitPack's free tier only builds **public** repositories, so while this one is private use the
+> [source install](#option-2-as-source) instead. The API is not frozen and may change without
+> notice.
 
 > **Screenshot / GIF placeholder** — drop a recording of the sample app at `docs/demo.gif` and
 > reference it here.
@@ -45,16 +47,55 @@ on `liveness-compose` also gives you the camera and core types.
 
 A fourth module, `sample`, is a demo app rather than a library. It is not meant to be consumed.
 
-The artifact ids reserved for publication are `vividly-core`, `vividly-camera` and
-`vividly-compose` under the group `io.github.taimuur`. **None of them are published yet**, and the
-project deliberately carries no publishing configuration — see [Roadmap](#roadmap).
+Each library module publishes as `vividly-core`, `vividly-camera` and `vividly-compose`. The group
+depends on where you get them from: `com.github.Taimuur.Vividly` via JitPack, and
+`io.github.taimuur` once they reach Maven Central.
 
 ## Installation
 
-### Today: as source
+### Option 1: JitPack (recommended)
 
-Vividly is consumed as Gradle modules. Clone this repository next to your app, then point your
-`settings.gradle.kts` at the three library directories:
+JitPack builds this repository on demand and serves the result as a Maven artifact, so no Maven
+Central release is needed. **It only works while the repository is public** — the free tier cannot
+clone private repositories.
+
+Add the JitPack repository:
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+Then depend on a tag (or a commit hash, or `main-SNAPSHOT`):
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation("com.github.Taimuur.Vividly:vividly-compose:0.1.0")
+}
+```
+
+`vividly-compose` brings `vividly-camera` and `vividly-core` with it. For a headless integration,
+depend on `vividly-camera` instead; for the state machine alone, `vividly-core`.
+
+To cut a release, tag a commit and push the tag — the first request for that version is what
+triggers the JitPack build:
+
+```bash
+git tag 0.1.0 && git push origin 0.1.0
+```
+
+### Option 2: as source
+
+Works regardless of repository visibility, and is the better choice if you intend to modify the
+library. Clone this repository next to your app, then point your `settings.gradle.kts` at the three
+library directories:
 
 ```kotlin
 // settings.gradle.kts — in your app
@@ -81,16 +122,17 @@ your own catalog, or replace the aliases with literal coordinates in your copy o
 If you would rather not merge catalogs, the simplest starting point is to work inside this
 repository and use the `sample` module as your app.
 
-### Once published
+### Option 3: Maven Central — not yet available
 
-When the artifacts land on Maven Central, the whole of the above collapses to one line — which is
-exactly why publishing is on the roadmap:
+Once the artifacts are released to Maven Central, no custom repository will be needed at all:
 
 ```kotlin
 dependencies {
     implementation("io.github.taimuur:vividly-compose:<version>")
 }
 ```
+
+This does not resolve today. See [Roadmap](#roadmap).
 
 ## Quick start — Compose
 
@@ -278,11 +320,14 @@ reflectance checks.
 on `FaceFrame`, a new detector, and a new `Challenge` entry. More distinct challenges means a larger
 pool for the randomiser to draw from, which makes a session harder to pre-record.
 
-**Publishing to Maven Central.** Maven Central is the public repository Gradle downloads
-dependencies from. Publishing there is what turns the multi-step
-[Installation](#installation) dance into a single `implementation(...)` line, and it is the only
-thing standing between this project and being usable by someone who has not cloned it. Nothing about
-the library requires it in order to *work* — it is purely about distribution.
+**Publishing to Maven Central.** Maven Central is the default repository Gradle downloads
+dependencies from, so an artifact there needs no extra repository declaration and no build step on
+the consumer's side. [JitPack](#option-1-jitpack-recommended) already covers the practical need —
+the modules carry full `maven-publish` configuration and POM metadata, and `publishToMavenLocal`
+produces the same artifacts JitPack serves. What Maven Central adds is durability and reach: JitPack
+builds on demand from a repository that must stay public, whereas Central hosts immutable artifacts
+independent of this repository's existence or visibility. It also requires verified ownership of the
+`io.github.taimuur` namespace, which is why the group differs between the two channels.
 
 **`binary-compatibility-validator`.** A Gradle plugin that dumps the public API surface into `.api`
 files committed to the repository, then fails the build whenever a change alters that surface. Once
@@ -298,12 +343,17 @@ protect.
 ```bash
 ./gradlew :liveness-core:test    # the state machine's test suite (39 tests)
 ./gradlew assembleDebug          # every module
+./gradlew publishToMavenLocal    # the three library artifacts, into ~/.m2
 ```
 
 `assembleDebug` produces the two Android library AARs and the sample APK, and builds
 `liveness-core` along the way — core is a plain JVM module with no `assembleDebug` task of its own,
 but the Android modules depend on it, so its jar is built as part of the same command. In short, one
 command covers all four modules.
+
+`publishToMavenLocal` is exactly what [`jitpack.yml`](jitpack.yml) runs, so publishing locally and
+consuming `0.1.0-SNAPSHOT` from `mavenLocal()` reproduces what a JitPack consumer would get. Pass
+`-Pversion=<something>` to override the version stamped into the artifacts.
 
 Requires JDK 17 and an Android SDK with API 36 installed. The `sample` module is the manual test
 bed: it exercises the runtime permission grant, a successful capture, and each failure mode.
