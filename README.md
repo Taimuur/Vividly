@@ -339,27 +339,50 @@ bed: it exercises the runtime permission grant, a successful capture, and each f
 
 ## Releasing
 
-The version lives in [`gradle.properties`](gradle.properties); `-Pversion=` overrides it.
+**Releases are automated.** Pushing a version tag runs
+[`.github/workflows/publish.yml`](.github/workflows/publish.yml), which tests, builds, signs and
+releases to Maven Central, then attaches the artifacts to a GitHub release:
 
-Publishing to Maven Central needs two secrets, which belong in `~/.gradle/gradle.properties` (**not**
-in this repository) or in `ORG_GRADLE_PROJECT_*` environment variables:
+```bash
+git tag 0.1.1 && git push origin 0.1.1
+```
+
+The tag is the source of truth for the version — it is passed to Gradle as `-Pversion`, with any
+leading `v` stripped, so `0.1.1` and `v0.1.1` both work and the published version can never drift
+from the tag. The value in [`gradle.properties`](gradle.properties) is only the default for local
+builds. The workflow can also be run manually from the Actions tab with an explicit version.
+
+Note that **Maven Central releases are immutable**: a published version cannot be replaced or
+deleted, only superseded. That is why the test suite gates the publish step.
+
+### Required repository secrets
+
+| Secret | Value |
+|---|---|
+| `MAVEN_CENTRAL_USERNAME` | Central Portal user token name |
+| `MAVEN_CENTRAL_PASSWORD` | Central Portal user token password |
+| `SIGNING_KEY` | GPG private key, ASCII-armoured or base64-encoded |
+| `SIGNING_PASSWORD` | Passphrase for that key |
+
+### Publishing by hand
+
+The same thing works locally. Put the credentials in `~/.gradle/gradle.properties` — **never** in
+this repository:
 
 ```properties
 mavenCentralUsername=<Central Portal user token name>
 mavenCentralPassword=<Central Portal user token password>
-
 signingInMemoryKey=<ASCII-armoured GPG private key, newlines as \n>
 signingInMemoryKeyPassword=<its passphrase>
 ```
 
-Signing is enabled only when `signingInMemoryKey` is present, so `publishToMavenLocal` and JitPack
-builds keep working on a machine with no GPG setup.
-
 ```bash
 ./gradlew publishToMavenCentral            # upload, then release manually in the Portal
 ./gradlew publishAndReleaseToMavenCentral  # upload and release in one step
-git tag 0.1.0 && git push origin 0.1.0
 ```
+
+Signing is enabled only when `signingInMemoryKey` is present, so `publishToMavenLocal` and JitPack
+builds keep working on a machine with no GPG setup at all.
 
 ## License
 

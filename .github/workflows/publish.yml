@@ -1,0 +1,117 @@
+name: Publish
+
+# Publishing is driven by tags: push 0.1.1 (or v0.1.1) and this workflow builds, tests, signs and
+# releases that version to Maven Central, then attaches the artifacts to a GitHub release.
+#
+# Maven Central releases are IMMUTABLE. A version published here can never be replaced or deleted,
+# only superseded by a higher one, which is why the test suite gates the publish step.
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, e.g. 0.1.1'
+        required: true
+
+permissions:
+  contents: write # needed to create the GitHub release
+
+concurrency:
+  # Never let two publishes of the same ref race each other.
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # release notes are generated from history
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve version
+        env:
+          # Read through the environment rather than interpolating into the script, so that a
+          # crafted tag or input cannot inject shell.
+          INPUT_VERSION: ${{ inputs.version }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # The tag is the source of truth, with an optional leading "v" stripped. This keeps the
+          # published version and the tag from ever drifting apart.
+          VERSION="${INPUT_VERSION:-${TAG_NAME#v}}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not resolve a version to publish."
+            exit 1
+          fi
+          echo "Publishing version $VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Test
+        # Gates the publish: an immutable release should never be cut from a red build.
+        run: ./gradlew :liveness-core:test
+
+      - name: Build release artifacts
+        run: |
+          ./gradlew \
+            :liveness-core:jar \
+            :liveness-camera:assembleRelease \
+            :liveness-compose:assembleRelease \
+            -Pversion="$VERSION"
+
+      - name: Prepare signing key
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::SIGNING_KEY secret is not set."
+            exit 1
+          fi
+          # Accept the key either as raw ASCII armor or base64-encoded, since multi-line secrets
+          # are awkward to paste into the GitHub UI and base64 is the usual workaround.
+          if printf '%s' "$SIGNING_KEY" | grep -q 'BEGIN PGP'; then
+            KEY="$SIGNING_KEY"
+          else
+            KEY="$(printf '%s' "$SIGNING_KEY" | base64 -d)"
+          fi
+          # A heredoc delimiter is the only safe way to put a multi-line value into GITHUB_ENV.
+          {
+            echo 'ORG_GRADLE_PROJECT_signingInMemoryKey<<VIVIDLY_SIGNING_KEY_EOF'
+            printf '%s\n' "$KEY"
+            echo 'VIVIDLY_SIGNING_KEY_EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Publish to Maven Central
+        env:
+          # Secrets reach Gradle as ORG_GRADLE_PROJECT_* environment variables rather than -P
+          # flags, which would otherwise be visible in the process list and in build scans.
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+        run: ./gradlew publishAndReleaseToMavenCentral -Pversion="$VERSION" --no-daemon
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ env.VERSION }}
+          generate_release_notes: true
+          files: |
+            liveness-core/build/libs/*.jar
+            liveness-camera/build/outputs/aar/*-release.aar
+            liveness-compose/build/outputs/aar/*-release.aar
