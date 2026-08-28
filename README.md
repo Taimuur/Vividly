@@ -1,5 +1,9 @@
 # Vividly
 
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.taimuur/vividly-core?label=Maven%20Central)](https://central.sonatype.com/artifact/io.github.taimuur/vividly-core)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg)](https://developer.android.com/tools/releases/platforms)
+
 Vividly is an active-liveness detection library for Android. It asks the person in front of the
 camera to perform a short, randomly ordered sequence of actions — smile, blink, turn your head —
 verifies each one from ML Kit's face classifier, and captures a photo at the instant the last
@@ -7,13 +11,9 @@ challenge is completed. The state machine that decides all of this is a pure Kot
 Android dependencies at all, so the interesting logic is unit-tested rather than device-tested; a
 CameraX adapter and an optional Compose UI are layered on top and can be replaced independently.
 
-> **Status: 0.1.0.** Published to Maven Central. The API is not frozen and may change between `0.x`
-> releases.
-
-> **Screenshot / GIF placeholder** — drop a recording of the sample app at `docs/demo.gif` and
-> reference it here.
->
-> `![Vividly demo](docs/demo.gif)`
+<!-- Record the sample app and drop it in as docs/demo.gif, then uncomment:
+![Vividly demo](docs/demo.gif)
+-->
 
 ---
 
@@ -96,7 +96,8 @@ The library modules declare their dependencies through this repository's version
 copy the entries they reference from [`gradle/libs.versions.toml`](gradle/libs.versions.toml) into
 your own catalog — otherwise the build fails with `Unresolved reference: libs`.
 
-Alternatively, run `./gradlew publishToMavenLocal` here and depend on `0.1.0` from `mavenLocal()`.
+Alternatively, run `./gradlew publishToMavenLocal` here and depend on it from `mavenLocal()`, using
+whatever version [`gradle.properties`](gradle.properties) currently declares.
 
 </details>
 
@@ -346,6 +347,14 @@ releases to Maven Central, then attaches the artifacts to a GitHub release:
 ```bash
 git tag 0.1.1 && git push origin 0.1.1
 ```
+
+Before tagging, bump the version in the [Installation](#installation) snippet and table above — the
+badge tracks the latest release automatically, but those copy-paste examples are hardcoded and will
+otherwise send people to an older version.
+
+After the workflow finishes, the deployment sits in `PUBLISHING` on the Portal for a few minutes
+while Central syncs it to `repo1.maven.org`. Artifacts are usually resolvable within ~30 minutes;
+the search index can lag by a few hours.
 
 The tag is the source of truth for the version — it is passed to Gradle as `-Pversion`, with any
 leading `v` stripped, so `0.1.1` and `v0.1.1` both work and the published version can never drift
