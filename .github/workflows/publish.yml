@@ -75,11 +75,11 @@ jobs:
 
       - name: Prepare signing key
         env:
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.VIVIDLY_SECRET_KEY }}
         run: |
           set -euo pipefail
           if [ -z "$SIGNING_KEY" ]; then
-            echo "::error::SIGNING_KEY secret is not set."
+            echo "::error::VIVIDLY_SECRET_KEY secret is not set."
             exit 1
           fi
           # Accept the key either as raw ASCII armor or base64-encoded, since multi-line secrets
