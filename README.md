@@ -7,11 +7,8 @@ challenge is completed. The state machine that decides all of this is a pure Kot
 Android dependencies at all, so the interesting logic is unit-tested rather than device-tested; a
 CameraX adapter and an optional Compose UI are layered on top and can be replaced independently.
 
-> **Status: pre-release.** Vividly is not on Maven Central yet. It installs from
-> [JitPack](#option-1-jitpack-recommended), which builds directly from a tag in this repository —
-> but JitPack's free tier only builds **public** repositories, so while this one is private use the
-> [source install](#option-2-as-source) instead. The API is not frozen and may change without
-> notice.
+> **Status: 0.1.0.** Published to Maven Central. The API is not frozen and may change between `0.x`
+> releases.
 
 > **Screenshot / GIF placeholder** — drop a recording of the sample app at `docs/demo.gif` and
 > reference it here.
@@ -20,85 +17,74 @@ CameraX adapter and an optional Compose UI are layered on top and can be replace
 
 ---
 
-## Modules
-
-```
-┌─────────────────┐
-│ liveness-compose│  optional default UI (slot-based, themable)
-└────────┬────────┘
-         │ api
-┌────────▼────────┐
-│ liveness-camera │  CameraX + ML Kit adapter, auto-capture
-└────────┬────────┘
-         │ api
-┌────────▼────────┐
-│  liveness-core  │  the state machine. Pure Kotlin/JVM, zero Android
-└─────────────────┘
-```
-
-Dependencies point downward only. Because each level exposes the one below it with `api`, depending
-on `liveness-compose` also gives you the camera and core types.
-
-| Gradle module     | Depends on                     | Use it when |
-|-------------------|--------------------------------|-------------|
-| `liveness-core`   | kotlinx-coroutines-core        | You have your own face detector and want only the challenge logic |
-| `liveness-camera` | CameraX, ML Kit face detection | You want the camera plumbing but your own UI |
-| `liveness-compose`| Compose, Material 3            | You want a screen that works out of the box |
-
-A fourth module, `sample`, is a demo app rather than a library. It is not meant to be consumed.
-
-Each library module publishes as `vividly-core`, `vividly-camera` and `vividly-compose`. The group
-depends on where you get them from: `com.github.Taimuur.Vividly` via JitPack, and
-`io.github.taimuur` once they reach Maven Central.
-
 ## Installation
-
-### Option 1: JitPack (recommended)
-
-JitPack builds this repository on demand and serves the result as a Maven artifact, so no Maven
-Central release is needed. **It only works while the repository is public** — the free tier cannot
-clone private repositories.
-
-Add the JitPack repository:
-
-```kotlin
-// settings.gradle.kts
-dependencyResolutionManagement {
-    repositories {
-        google()
-        mavenCentral()
-        maven { url = uri("https://jitpack.io") }
-    }
-}
-```
-
-Then depend on a tag (or a commit hash, or `main-SNAPSHOT`):
 
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("com.github.Taimuur.Vividly:vividly-compose:0.1.0")
+    implementation("io.github.taimuur:vividly-compose:0.1.0")
 }
 ```
 
-`vividly-compose` brings `vividly-camera` and `vividly-core` with it. For a headless integration,
-depend on `vividly-camera` instead; for the state machine alone, `vividly-core`.
+That is the whole setup. Maven Central is in the default repository list for a standard Android
+project, so no extra repository declaration is needed.
 
-To cut a release, tag a commit and push the tag — the first request for that version is what
-triggers the JitPack build:
+`vividly-compose` brings the rest with it. Depend on a lower level instead if you do not want the
+bundled UI:
 
-```bash
-git tag 0.1.0 && git push origin 0.1.0
-```
+| Dependency | What you get |
+|---|---|
+| `io.github.taimuur:vividly-compose:0.1.0` | The ready-made Compose screen, plus everything below |
+| `io.github.taimuur:vividly-camera:0.1.0`  | CameraX and ML Kit wiring; bring your own UI |
+| `io.github.taimuur:vividly-core:0.1.0`    | The state machine only; bring your own face detector |
 
-### Option 2: as source
+<details>
+<summary>If your build overrides the repository list</summary>
 
-Works regardless of repository visibility, and is the better choice if you intend to modify the
-library. Clone this repository next to your app, then point your `settings.gradle.kts` at the three
-library directories:
+Some projects replace the defaults in `settings.gradle.kts`. Make sure both of these are present —
+`google()` is needed for CameraX, Compose and ML Kit:
 
 ```kotlin
-// settings.gradle.kts — in your app
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+```
+
+</details>
+
+<details>
+<summary>Consuming an unreleased commit (JitPack)</summary>
+
+Released versions come from Maven Central. To try a commit that has not been released yet, JitPack
+builds this repository on demand — note its free tier only builds **public** repositories.
+
+```kotlin
+// settings.gradle.kts
+repositories {
+    maven { url = uri("https://jitpack.io") }
+}
+```
+
+```kotlin
+implementation("com.github.Taimuur.Vividly:vividly-compose:main-SNAPSHOT")
+```
+
+The group differs from the Maven Central one because JitPack resolves a multi-module build under
+`com.github.<User>.<Repo>`; [`jitpack.yml`](jitpack.yml) overrides the group for those builds.
+
+</details>
+
+<details>
+<summary>Building against local source</summary>
+
+Useful when modifying the library itself. Clone this repository next to your app and point
+`settings.gradle.kts` at the module directories:
+
+```kotlin
 include(":liveness-core", ":liveness-camera", ":liveness-compose")
 
 project(":liveness-core").projectDir = file("../vividly/liveness-core")
@@ -106,33 +92,40 @@ project(":liveness-camera").projectDir = file("../vividly/liveness-camera")
 project(":liveness-compose").projectDir = file("../vividly/liveness-compose")
 ```
 
-```kotlin
-// app/build.gradle.kts
-dependencies {
-    implementation(project(":liveness-compose"))
-}
+The library modules declare their dependencies through this repository's version catalog, so also
+copy the entries they reference from [`gradle/libs.versions.toml`](gradle/libs.versions.toml) into
+your own catalog — otherwise the build fails with `Unresolved reference: libs`.
+
+Alternatively, run `./gradlew publishToMavenLocal` here and depend on `0.1.0` from `mavenLocal()`.
+
+</details>
+
+## Modules
+
+```
+┌─────────────────┐
+│ liveness-compose│  vividly-compose  — optional default UI (slot-based, themable)
+└────────┬────────┘
+         │ api
+┌────────▼────────┐
+│ liveness-camera │  vividly-camera   — CameraX + ML Kit adapter, auto-capture
+└────────┬────────┘
+         │ api
+┌────────▼────────┐
+│  liveness-core  │  vividly-core     — the state machine. Pure Kotlin/JVM, zero Android
+└─────────────────┘
 ```
 
-**One step that is easy to miss:** the library modules declare their dependencies through this
-repository's version catalog (`libs.plugins.android.library`, `libs.androidx.camera.core`, and so
-on). A build that does not define those aliases fails with `Unresolved reference: libs`. Copy the
-entries the modules reference from [`gradle/libs.versions.toml`](gradle/libs.versions.toml) into
-your own catalog, or replace the aliases with literal coordinates in your copy of the modules.
+Dependencies point downward only. Because each level exposes the one below it with `api`, depending
+on `vividly-compose` also gives you the camera and core types.
 
-If you would rather not merge catalogs, the simplest starting point is to work inside this
-repository and use the `sample` module as your app.
+| Gradle module     | Artifact          | Depends on                     |
+|-------------------|-------------------|--------------------------------|
+| `liveness-core`   | `vividly-core`    | kotlinx-coroutines-core        |
+| `liveness-camera` | `vividly-camera`  | CameraX, ML Kit face detection |
+| `liveness-compose`| `vividly-compose` | Compose, Material 3            |
 
-### Option 3: Maven Central — not yet available
-
-Once the artifacts are released to Maven Central, no custom repository will be needed at all:
-
-```kotlin
-dependencies {
-    implementation("io.github.taimuur:vividly-compose:<version>")
-}
-```
-
-This does not resolve today. See [Roadmap](#roadmap).
+A fourth module, `sample`, is a demo app rather than a library, and is not published.
 
 ## Quick start — Compose
 
@@ -320,23 +313,13 @@ reflectance checks.
 on `FaceFrame`, a new detector, and a new `Challenge` entry. More distinct challenges means a larger
 pool for the randomiser to draw from, which makes a session harder to pre-record.
 
-**Publishing to Maven Central.** Maven Central is the default repository Gradle downloads
-dependencies from, so an artifact there needs no extra repository declaration and no build step on
-the consumer's side. [JitPack](#option-1-jitpack-recommended) already covers the practical need —
-the modules carry full `maven-publish` configuration and POM metadata, and `publishToMavenLocal`
-produces the same artifacts JitPack serves. What Maven Central adds is durability and reach: JitPack
-builds on demand from a repository that must stay public, whereas Central hosts immutable artifacts
-independent of this repository's existence or visibility. It also requires verified ownership of the
-`io.github.taimuur` namespace, which is why the group differs between the two channels.
-
 **`binary-compatibility-validator`.** A Gradle plugin that dumps the public API surface into `.api`
-files committed to the repository, then fails the build whenever a change alters that surface. Once
-someone depends on a published `vividly-core`, deleting a public function or changing a signature
-breaks their compile — or throws `NoSuchMethodError` at runtime for anyone who does not rebuild. The
+files committed to the repository, then fails the build whenever a change alters that surface. Now
+that the artifacts are published, deleting a public function or changing a signature breaks a
+consumer's compile — or throws `NoSuchMethodError` at runtime for anyone who does not rebuild. The
 validator turns an accidental break into a visible diff in code review. It pairs with the
 `explicitApi()` mode already enabled here: `explicitApi()` forces you to *declare* what is public,
-the validator *locks* what is public. It is only worth adding once there are downstream consumers to
-protect.
+the validator *locks* what is public.
 
 ## Building
 
@@ -351,12 +334,32 @@ protect.
 but the Android modules depend on it, so its jar is built as part of the same command. In short, one
 command covers all four modules.
 
-`publishToMavenLocal` is exactly what [`jitpack.yml`](jitpack.yml) runs, so publishing locally and
-consuming `0.1.0-SNAPSHOT` from `mavenLocal()` reproduces what a JitPack consumer would get. Pass
-`-Pversion=<something>` to override the version stamped into the artifacts.
-
 Requires JDK 17 and an Android SDK with API 36 installed. The `sample` module is the manual test
 bed: it exercises the runtime permission grant, a successful capture, and each failure mode.
+
+## Releasing
+
+The version lives in [`gradle.properties`](gradle.properties); `-Pversion=` overrides it.
+
+Publishing to Maven Central needs two secrets, which belong in `~/.gradle/gradle.properties` (**not**
+in this repository) or in `ORG_GRADLE_PROJECT_*` environment variables:
+
+```properties
+mavenCentralUsername=<Central Portal user token name>
+mavenCentralPassword=<Central Portal user token password>
+
+signingInMemoryKey=<ASCII-armoured GPG private key, newlines as \n>
+signingInMemoryKeyPassword=<its passphrase>
+```
+
+Signing is enabled only when `signingInMemoryKey` is present, so `publishToMavenLocal` and JitPack
+builds keep working on a machine with no GPG setup.
+
+```bash
+./gradlew publishToMavenCentral            # upload, then release manually in the Portal
+./gradlew publishAndReleaseToMavenCentral  # upload and release in one step
+git tag 0.1.0 && git push origin 0.1.0
+```
 
 ## License
 

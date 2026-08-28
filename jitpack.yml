@@ -11,7 +11,14 @@ jdk:
   - openjdk17
 
 install:
-  # JitPack exposes the tag being built as $VERSION. -Pversion overrides the default set in
-  # gradle.properties, so the published artifacts carry the tag as their version. The fallback
-  # keeps the command valid if the variable is ever unset, rather than publishing an empty version.
-  - ./gradlew publishToMavenLocal -Pversion=${VERSION:-0.1.0-SNAPSHOT} --no-daemon --stacktrace
+  # The default group in gradle.properties is the Maven Central one (io.github.taimuur), so it is
+  # overridden here: JitPack resolves a multi-module build under com.github.<User>.<Repo>.
+  #
+  # JitPack exposes the tag being built as $VERSION. -Pversion makes the published artifacts carry
+  # that tag; the fallback keeps the command valid if the variable is ever unset, rather than
+  # publishing an empty version.
+  - >
+    ./gradlew publishToMavenLocal
+    -Pgroup=com.github.Taimuur.Vividly
+    -Pversion=${VERSION:-0.1.0-SNAPSHOT}
+    --no-daemon --stacktrace
