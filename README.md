@@ -361,7 +361,7 @@ deleted, only superseded. That is why the test suite gates the publish step.
 |---|---|
 | `MAVEN_CENTRAL_USERNAME` | Central Portal user token name |
 | `MAVEN_CENTRAL_PASSWORD` | Central Portal user token password |
-| `VIVIDLY_SECRET_KEY` | GPG private key, ASCII-armoured or base64-encoded |
+| `VIVIDLY_ACTION_SECRET` | GPG private key, ASCII-armoured or base64-encoded |
 | `SIGNING_PASSWORD` | Passphrase for that key |
 
 ### Publishing by hand

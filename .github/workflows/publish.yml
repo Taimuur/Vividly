@@ -34,6 +34,30 @@ jobs:
         with:
           fetch-depth: 0 # release notes are generated from history
 
+      - name: Check required secrets
+        # Runs before the build so a misnamed secret fails in seconds rather than after several
+        # minutes of compiling. Reports every missing name at once, and never echoes a value.
+        env:
+          VIVIDLY_ACTION_SECRET: ${{ secrets.VIVIDLY_ACTION_SECRET }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+        run: |
+          set -uo pipefail
+          missing=0
+          for name in VIVIDLY_ACTION_SECRET SIGNING_PASSWORD MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing repository secret: $name"
+              missing=1
+            else
+              echo "ok: $name is set"
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Add the missing secrets under Settings > Secrets and variables > Actions > Repository secrets."
+            exit 1
+          fi
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -75,13 +99,9 @@ jobs:
 
       - name: Prepare signing key
         env:
-          SIGNING_KEY: ${{ secrets.VIVIDLY_SECRET_KEY }}
+          SIGNING_KEY: ${{ secrets.VIVIDLY_ACTION_SECRET }}
         run: |
           set -euo pipefail
-          if [ -z "$SIGNING_KEY" ]; then
-            echo "::error::VIVIDLY_SECRET_KEY secret is not set."
-            exit 1
-          fi
           # Accept the key either as raw ASCII armor or base64-encoded, since multi-line secrets
           # are awkward to paste into the GitHub UI and base64 is the usual workaround.
           if printf '%s' "$SIGNING_KEY" | grep -q 'BEGIN PGP'; then
