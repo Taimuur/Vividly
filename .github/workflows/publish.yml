@@ -85,6 +85,12 @@ jobs:
           echo "Publishing version $VERSION"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
+      - name: Check docs reference this version
+        # A stale install snippet would send people to an older release than the badge advertises,
+        # and the artifacts are immutable once published, so this is checked before anything is
+        # built. Run `./gradlew syncReadmeVersion` locally to fix.
+        run: ./gradlew checkReadmeVersion -Pversion="$VERSION"
+
       - name: Test
         # Gates the publish: an immutable release should never be cut from a red build.
         run: ./gradlew :liveness-core:test

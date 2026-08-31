@@ -4,21 +4,30 @@ Maintainer notes. Consumers do not need anything in this file.
 
 ## Cutting a release
 
-Pushing a version tag runs [`.github/workflows/publish.yml`](.github/workflows/publish.yml), which
-tests, builds, signs and releases to Maven Central, then attaches the artifacts to a GitHub release:
+Three steps. Bump the version in [`gradle.properties`](gradle.properties), sync the docs to it, then
+tag:
 
 ```bash
-git tag 0.1.1 && git push origin 0.1.1
+./gradlew syncReadmeVersion
 ```
 
-The tag is the source of truth for the version — it reaches Gradle as `-Pversion` with any leading
-`v` stripped, so `0.1.1` and `v0.1.1` both work and the published version cannot drift from the tag
-it was cut from. The value in [`gradle.properties`](gradle.properties) is only the default for local
-builds. The workflow can also be run manually from the Actions tab with an explicit version.
+```bash
+git commit -am "chore: prepare 0.1.1" && git tag 0.1.1 && git push origin main 0.1.1
+```
 
-**Before tagging**, bump the hardcoded versions in the README's install snippet and dependency
-table. The Maven Central badge tracks the latest release on its own, but those copy-paste examples
-do not.
+Pushing the tag runs [`.github/workflows/publish.yml`](.github/workflows/publish.yml), which checks
+the docs, tests, builds, signs and releases to Maven Central, then attaches the artifacts to a
+GitHub release.
+
+`gradle.properties` is the single source of truth for the version. `syncReadmeVersion` rewrites
+every `io.github.taimuur:vividly-*:<version>` coordinate in the README from it, so the install
+snippet and the dependency table cannot go stale. The workflow runs `checkReadmeVersion` before it
+builds anything and fails if they have drifted from the tag — so forgetting the sync stops the
+release rather than shipping instructions that point at an older version.
+
+The tag must match the version being released. It reaches Gradle as `-Pversion` with any leading `v`
+stripped, so `0.1.1` and `v0.1.1` both work. The workflow can also be run manually from the Actions
+tab with an explicit version.
 
 **Maven Central releases are immutable.** A published version can never be replaced or deleted, only
 superseded by a higher one — which is why the test suite gates the publish step. A run that fails
