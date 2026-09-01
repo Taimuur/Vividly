@@ -23,6 +23,10 @@ import org.junit.Test
 
 class LivenessSessionTest {
 
+    /**
+     * These tests are about challenge detection and progress rules, so the capture hold is turned
+     * off to keep the assertions about the thing under test. [CaptureHoldTest] covers the hold.
+     */
     private fun fixedOrderConfig(
         vararg challenges: Challenge,
         challengeTimeoutMs: Long = 15_000,
@@ -35,6 +39,7 @@ class LivenessSessionTest {
         challengeTimeoutMs = challengeTimeoutMs,
         sessionTimeoutMs = sessionTimeoutMs,
         minConsecutiveFrames = minConsecutiveFrames,
+        captureHold = CaptureHold(enabled = false),
     )
 
     // --- happy path -------------------------------------------------------------------------
@@ -51,6 +56,14 @@ class LivenessSessionTest {
 
         repeat(plan.size) {
             now = session.perform(session.currentChallenge(), now)
+        }
+
+        // Default config keeps the capture hold on, so the session waits for a camera-facing pose
+        // before it succeeds — the last challenge may well have left the head turned away.
+        assertEquals(SessionState.AwaitingCapture, session.state.value)
+        repeat(2) {
+            session.process(face(now))
+            now += 50
         }
 
         val state = session.state.value

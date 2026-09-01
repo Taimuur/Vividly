@@ -49,6 +49,41 @@ public data class DetectionThresholds(
 }
 
 /**
+ * Controls the short, verified "face the camera" stage between the last challenge and the capture.
+ *
+ * Without it, the photo is taken on the exact frame the final challenge passes. When that challenge
+ * is a turn, the head is by definition rotated past
+ * [DetectionThresholds.turnAngleDegrees] — so the captured image is a profile shot, which is
+ * useless for review or face matching.
+ *
+ * This stage is deliberately *not* a delay. A blind pause between verification and shutter would
+ * reopen the gap that automatic capture exists to close, letting a different face step in
+ * unverified. Instead the session keeps checking during the hold: the same tracked face, alone in
+ * frame, in a neutral pose. Anything else resets progress, just as it would mid-challenge.
+ *
+ * @property enabled Whether to wait for a neutral pose. Turning this off restores capture on the
+ *   instant the last challenge passes.
+ * @property maxYawDegrees How close to facing the camera the head must be, in degrees either way.
+ * @property requireEyesOpen Whether the eyes must also be open, so the capture does not land
+ *   mid-blink. Uses [DetectionThresholds.eyeOpen].
+ * @property minConsecutiveFrames How many consecutive frames must satisfy the pose before the
+ *   photo is taken.
+ */
+public data class CaptureHold(
+    val enabled: Boolean = true,
+    val maxYawDegrees: Float = 10f,
+    val requireEyesOpen: Boolean = true,
+    val minConsecutiveFrames: Int = 2,
+) {
+    init {
+        require(maxYawDegrees > 0f) { "maxYawDegrees must be positive, was $maxYawDegrees" }
+        require(minConsecutiveFrames >= 1) {
+            "minConsecutiveFrames must be at least 1, was $minConsecutiveFrames"
+        }
+    }
+}
+
+/**
  * Configuration for a [LivenessSession].
  *
  * @property challenges The pool of challenges a session may draw from. Must not be empty and must
@@ -69,6 +104,8 @@ public data class DetectionThresholds(
  *   while no face is visible, so a user cannot stall it by stepping out of view.
  * @property minConsecutiveFrames How many consecutive frames must satisfy a smile or turn challenge
  *   before it counts as passed. Values above `1` filter out single-frame detector noise.
+ * @property captureHold The verified "face the camera" stage before the photo is taken, see
+ *   [CaptureHold]. It gets its own [challengeTimeoutMs] budget, like any other step.
  */
 public data class LivenessConfig(
     val challenges: List<Challenge> = Challenge.entries,
@@ -78,6 +115,7 @@ public data class LivenessConfig(
     val challengeTimeoutMs: Long = 15_000,
     val sessionTimeoutMs: Long = 60_000,
     val minConsecutiveFrames: Int = 2,
+    val captureHold: CaptureHold = CaptureHold(),
 ) {
     init {
         require(challenges.isNotEmpty()) { "challenges must not be empty" }

@@ -56,6 +56,21 @@ public sealed interface SessionState {
     ) : SessionState
 
     /**
+     * Every challenge is done and the user is being asked to face the camera so the photo is worth
+     * keeping.
+     *
+     * A turn challenge ends with the head rotated well away from the lens, so capturing on the
+     * instant the last challenge passes yields a profile shot. This stage waits for a neutral,
+     * camera-facing pose — but it is a *verified* wait, not a delay: the same face must stay in
+     * frame, alone, throughout. Losing it, or a different one appearing, resets the session exactly
+     * as it would mid-challenge, so there is still no unverified gap between passing the challenges
+     * and the shutter.
+     *
+     * Skipped entirely when [CaptureHold.enabled] is `false`.
+     */
+    public data object AwaitingCapture : SessionState
+
+    /**
      * Every challenge was completed. Terminal.
      *
      * @property completedChallenges The plan the user completed, in the order it was asked.

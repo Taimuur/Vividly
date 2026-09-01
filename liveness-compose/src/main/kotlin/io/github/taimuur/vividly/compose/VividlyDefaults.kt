@@ -68,6 +68,7 @@ public object VividlyDefaults {
             Challenge.TURN_RIGHT -> "Slowly turn your head right"
         }
 
+        SessionState.AwaitingCapture -> "Look at the camera and hold still"
         is SessionState.Succeeded -> "Done"
         is SessionState.Failed -> when (state.reason) {
             FailureReason.SESSION_TIMEOUT -> "That took too long — please try again"

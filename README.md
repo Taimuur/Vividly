@@ -6,8 +6,8 @@
 
 Vividly is an active-liveness detection library for Android. It asks the person in front of the
 camera to perform a short, randomly ordered sequence of actions — smile, blink, turn your head —
-verifies each one from ML Kit's face classifier, and captures a photo at the instant the last
-challenge is completed. The state machine that decides all of this is a pure Kotlin module with no
+verifies each one from ML Kit's face classifier, and captures a photo automatically once the user
+faces the camera again. The state machine that decides all of this is a pure Kotlin module with no
 Android dependencies at all, so the interesting logic is unit-tested rather than device-tested; a
 CameraX adapter and an optional Compose UI are layered on top and can be replaced independently.
 
@@ -22,7 +22,7 @@ CameraX adapter and an optional Compose UI are layered on top and can be replace
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("io.github.taimuur:vividly-compose:0.1.0")
+    implementation("io.github.taimuur:vividly-compose:0.2.0")
 }
 ```
 
@@ -34,9 +34,9 @@ bundled UI:
 
 | Dependency | What you get |
 |---|---|
-| `io.github.taimuur:vividly-compose:0.1.0` | The ready-made Compose screen, plus everything below |
-| `io.github.taimuur:vividly-camera:0.1.0`  | CameraX and ML Kit wiring; bring your own UI |
-| `io.github.taimuur:vividly-core:0.1.0`    | The state machine only; bring your own face detector |
+| `io.github.taimuur:vividly-compose:0.2.0` | The ready-made Compose screen, plus everything below |
+| `io.github.taimuur:vividly-camera:0.2.0`  | CameraX and ML Kit wiring; bring your own UI |
+| `io.github.taimuur:vividly-core:0.2.0`    | The state machine only; bring your own face detector |
 
 <details>
 <summary>If your build overrides the repository list</summary>
@@ -228,6 +228,7 @@ rather than silently at runtime.
 | `challengeTimeoutMs` | `Long` | `15_000` | Budget per challenge; the clock restarts on each advance. |
 | `sessionTimeoutMs` | `Long` | `60_000` | Budget for the whole session, from the first frame. |
 | `minConsecutiveFrames` | `Int` | `2` | Frames a smile or turn must persist for, to filter noise. |
+| `captureHold` | `CaptureHold` | see below | The verified pose check before the photo is taken. |
 
 | Threshold | Type | Default | Meaning |
 |---|---|---|---|
@@ -235,6 +236,19 @@ rather than silently at runtime.
 | `eyeClosed` | `Float` | `0.3f` | An eye is closed below this. |
 | `eyeOpen` | `Float` | `0.7f` | An eye is open above this. The gap between the two is a hysteresis band. |
 | `turnAngleDegrees` | `Float` | `20f` | How far the head must rotate for a turn to count. |
+
+`CaptureHold` governs the short pose check between the last challenge and the photo. A turn
+challenge ends with the head rotated away from the lens, so capturing the instant it passes would
+produce a profile shot — this waits for the user to face the camera again. It is a *verified* wait,
+not a delay: the same face must stay in frame, alone, throughout, and losing or swapping it resets
+the session exactly as it would mid-challenge.
+
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `enabled` | `Boolean` | `true` | Set `false` to capture the instant the last challenge passes. |
+| `maxYawDegrees` | `Float` | `10f` | How close to facing the camera the head must be, either way. |
+| `requireEyesOpen` | `Boolean` | `true` | Avoids capturing mid-blink. Uses `eyeOpen`. |
+| `minConsecutiveFrames` | `Int` | `2` | Frames the pose must hold before the photo is taken. |
 
 ### Challenges
 
@@ -259,6 +273,8 @@ passes through unchanged.
   so does the tracking id changing. One person cannot start a session and another finish it.
 - **The session clock keeps running** while no face is visible, so stepping out of frame is not a
   way to stall.
+- **The photo is taken after a brief pose check**, not on the frame the last challenge passes — see
+  `CaptureHold` above. The session keeps verifying throughout, so this is a wait, not a gap.
 
 ## Security
 
@@ -292,8 +308,10 @@ on the client can be lied to.
 **Design decisions that exist for security reasons** — worth preserving if you fork:
 
 - `randomizeOrder` defaults to `true`. A fixed script is a replayable script.
-- The photo is captured **automatically**, the instant the session succeeds. If a user had to tap a
-  button afterwards, nothing would bind the captured image to the face that passed the challenges.
+- The photo is captured **automatically**. If a user had to tap a button afterwards, nothing would
+  bind the captured image to the face that passed the challenges. `CaptureHold` waits for a usable
+  pose first, but keeps verifying while it waits — it is deliberately not a blind delay, which would
+  reopen exactly the gap automatic capture exists to close.
 - `BLINK` requires the eyes to *reopen*. Accepting "eyes are closed now" would let a photograph of
   someone with their eyes shut walk straight through.
 - Progress is destroyed, not paused, whenever the tracked face is lost or replaced.

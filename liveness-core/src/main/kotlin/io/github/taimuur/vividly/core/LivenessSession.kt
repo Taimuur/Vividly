@@ -18,6 +18,7 @@ package io.github.taimuur.vividly.core
 
 import io.github.taimuur.vividly.core.detector.ChallengeDetector
 import io.github.taimuur.vividly.core.detector.detectorFor
+import kotlin.math.abs
 import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -64,6 +65,7 @@ public class LivenessSession @JvmOverloads constructor(
     private var sessionStartMs: Long? = null
     private var challengeStartMs: Long? = null
     private var trackingId: Int? = null
+    private var holdFrames = 0
 
     /**
      * The challenges this session will ask for, in order.
@@ -112,6 +114,20 @@ public class LivenessSession @JvmOverloads constructor(
             return
         }
 
+        // All challenges done: hold for a neutral, camera-facing pose before the photo is taken.
+        if (challengeIndex >= plan.size) {
+            _state.value = SessionState.AwaitingCapture
+            if (isReadyForCapture(frame)) {
+                holdFrames++
+                if (holdFrames >= config.captureHold.minConsecutiveFrames) {
+                    succeed(frame, startedAt)
+                }
+            } else {
+                holdFrames = 0
+            }
+            return
+        }
+
         _state.value = currentChallengeState()
 
         if (detectors[challengeIndex].onFrame(frame)) {
@@ -140,23 +156,62 @@ public class LivenessSession @JvmOverloads constructor(
         sessionStartMs = null
         challengeStartMs = null
         trackingId = null
+        holdFrames = 0
         _state.value = SessionState.Idle
     }
 
     private fun advance(frame: FaceFrame, startedAt: Long) {
         challengeIndex++
+        // Every step gets the full per-challenge budget, timed from the moment it is asked. That
+        // includes the capture hold, which is why the clock is reset before the branch below.
+        challengeStartMs = frame.timestampMs
+
         if (challengeIndex >= plan.size) {
-            _state.value = SessionState.Succeeded(
-                completedChallenges = plan,
-                trackingId = trackingId,
-                durationMs = frame.timestampMs - startedAt,
-            )
+            if (config.captureHold.enabled) {
+                holdFrames = 0
+                _state.value = SessionState.AwaitingCapture
+            } else {
+                succeed(frame, startedAt)
+            }
             return
         }
-        // Every challenge gets the full per-challenge budget, timed from the moment it is asked.
-        challengeStartMs = frame.timestampMs
+
         detectors[challengeIndex].reset()
         _state.value = currentChallengeState()
+    }
+
+    private fun succeed(frame: FaceFrame, startedAt: Long) {
+        _state.value = SessionState.Succeeded(
+            completedChallenges = plan,
+            trackingId = trackingId,
+            durationMs = frame.timestampMs - startedAt,
+        )
+    }
+
+    /**
+     * Whether this frame is a good one to photograph: facing the camera, and not mid-blink.
+     *
+     * Observations the producer did not supply are not held against the user — a detector that
+     * reports no yaw cannot be asked to prove the head is straight, and failing closed would stall
+     * the session until it timed out.
+     */
+    private fun isReadyForCapture(frame: FaceFrame): Boolean {
+        val hold = config.captureHold
+
+        val yaw = frame.headYawDegrees
+        if (yaw != null && abs(yaw) > hold.maxYawDegrees) return false
+
+        if (hold.requireEyesOpen) {
+            val left = frame.leftEyeOpenProbability
+            val right = frame.rightEyeOpenProbability
+            if (left != null && right != null) {
+                if (left <= config.thresholds.eyeOpen || right <= config.thresholds.eyeOpen) {
+                    return false
+                }
+            }
+        }
+
+        return true
     }
 
     /**
@@ -179,6 +234,7 @@ public class LivenessSession @JvmOverloads constructor(
         challengeIndex = 0
         challengeStartMs = null
         trackingId = null
+        holdFrames = 0
         detectors.forEach { it.reset() }
     }
 
