@@ -20,6 +20,45 @@ welcome.
 but the Android modules depend on it, so its jar is built as part of the same command. One command
 covers all four modules.
 
+## Building against local source
+
+Useful when modifying the library from inside another app. Clone this repository next to your app
+and point `settings.gradle.kts` at the module directories:
+
+```kotlin
+include(":liveness-core", ":liveness-camera", ":liveness-compose")
+
+project(":liveness-core").projectDir = file("../vividly/liveness-core")
+project(":liveness-camera").projectDir = file("../vividly/liveness-camera")
+project(":liveness-compose").projectDir = file("../vividly/liveness-compose")
+```
+
+The library modules declare their dependencies through this repository's version catalog, so also
+copy the entries they reference from [`gradle/libs.versions.toml`](gradle/libs.versions.toml) into
+your own catalog — otherwise the build fails with `Unresolved reference: libs`.
+
+Alternatively, run `./gradlew publishToMavenLocal` here and depend on it from `mavenLocal()`, using
+whatever version [`gradle.properties`](gradle.properties) currently declares.
+
+## Trying an unreleased commit (JitPack)
+
+Released versions come from Maven Central. To try a commit that has not been released yet, JitPack
+builds this repository on demand — its free tier only builds **public** repositories.
+
+```kotlin
+// settings.gradle.kts
+repositories {
+    maven { url = uri("https://jitpack.io") }
+}
+```
+
+```kotlin
+implementation("com.github.Taimuur.Vividly:vividly-compose:main-SNAPSHOT")
+```
+
+The group differs from the Maven Central one because JitPack resolves a multi-module build under
+`com.github.<User>.<Repo>`; [`jitpack.yml`](jitpack.yml) overrides the group for those builds.
+
 ## Project layout
 
 | Module | What it is |
@@ -48,7 +87,26 @@ permission grant, a real capture, and each failure mode.
 
 - **Kotlin only**, with `explicitApi()` enabled on all three published modules. Public declarations
   need explicit visibility and explicit return types; the build fails otherwise.
-- **Apache-2.0 header** on every new source file — copy one from an existing file.
+- **Apache-2.0 header** on every new source file — it states the file's license at the top, so
+  anyone reading it in isolation knows the terms. Copy this block (or one from an existing file):
+
+  ```kotlin
+  /*
+   * Copyright 2026 The Vividly Authors
+   *
+   * Licensed under the Apache License, Version 2.0 (the "License");
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an "AS IS" BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+  ```
 - Public API changes need KDoc explaining not just what a thing does but why it behaves that way,
   particularly where the behaviour is a security property.
 
