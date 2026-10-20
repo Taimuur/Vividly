@@ -29,3 +29,16 @@ Thumbs.db
 # JVM crash dumps from daemon failures
 hs_err_pid*.log
 replay_pid*.log
+
+# Secrets and signing material -- never commit these
+*.jks
+*.keystore
+*.asc
+*.gpg
+*.p12
+.env
+.env.*
+
+# Editor and tool configuration
+.vscode/
+.claude/
