@@ -4,8 +4,8 @@
 # build left in the local Maven repository. Publishing there is exactly what
 # `publishToMavenLocal` does, so no JitPack-specific publishing setup is needed.
 #
-# Note: JitPack's free tier only builds PUBLIC repositories. While this repository is private,
-# JitPack cannot fetch it and builds will fail with a clone error.
+# Note: JitPack's free tier only builds PUBLIC repositories. If this repository is ever made
+# private, JitPack will no longer be able to fetch it and builds will fail with a clone error.
 
 jdk:
   - openjdk17
