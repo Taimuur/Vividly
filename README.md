@@ -8,6 +8,10 @@ Active-liveness detection for Android. Vividly asks the person in front of the c
 short, randomly ordered set of actions — smile, blink, turn your head — and automatically captures a
 photo once they are facing the camera again. You get back a verified selfie, or a reason it failed.
 
+<p align="center">
+  <img src="docs/vividly-liveness-demo.gif" alt="Vividly walking through a camera permission request, three randomly drawn challenges and an automatic capture" width="720">
+</p>
+
 - **Drop-in or bring your own UI.** One composable, or a camera controller, or just the state
   machine.
 - **Runs on-device.** No server, no account, no network calls of its own, nothing uploaded.
